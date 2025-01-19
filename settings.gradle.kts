@@ -1,6 +1,13 @@
 rootProject.name = "Vova_Otus"
 include("hw01-gradle")
 
+include("hw02-gradle2")
+include("hw02-gradle2-libApi")
+include("hw02-gradle2-libApiUse")
+include("hw02-logging")
+include("hw03-generics")
+
+include("hw04-qa")
 
 pluginManagement {
     val jgitver: String by settings
