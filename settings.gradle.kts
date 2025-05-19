@@ -9,6 +9,9 @@ include("hw03-generics")
 
 include("hw04-qa")
 
+include("hw32-concurrentCollections:ConcurrentCollections")
+include("hw32-concurrentCollections:QueueDemo")
+
 pluginManagement {
     val jgitver: String by settings
     val dependencyManagement: String by settings
