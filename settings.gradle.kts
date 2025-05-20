@@ -8,6 +8,7 @@ include("hw02-logging")
 include("hw03-generics")
 
 include("hw04-qa")
+include("hw34-multiprocess:grpc-demo")
 
 pluginManagement {
     val jgitver: String by settings
