@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "ru.otus.protobuf.generated";
+
+package ru.otus.protobuf;
+
+// Сервис для генерации последовательности чисел
+service NumbersService {
+  // Метод для получения потока чисел
+  rpc GetNumbers(NumberRequest) returns (stream NumberResponse) {}
+}
+
+// Запрос от клиента
+message NumberRequest {
+  int32 first_value = 1;  // Начальное значение
+  int32 last_value = 2;   // Конечное значение
+}
+
+// Ответ сервера
+message NumberResponse {
+  int32 value = 1;  // Сгенерированное число
+} 
