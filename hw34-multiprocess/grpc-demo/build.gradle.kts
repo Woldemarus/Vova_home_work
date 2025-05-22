@@ -23,7 +23,9 @@ dependencies {
     implementation("org.apache.tomcat:annotations-api:$tomcatAnnotationsApi")
 
     implementation("org.slf4j:slf4j-api:2.0.12")  // SLF4J API
-    implementation("ch.qos.logback:logback-classic:1.5.3")  // Реализация Logback (можно заменить на log4j или simple)
+    implementation("ch.qos.logback:logback-classic:1.5.3")  // Реализация Logback
+    implementation("ch.qos.logback:logback-core:1.5.3")     // Ядро Logback
+    implementation("org.codehaus.janino:janino:3.1.10")     // Для условных выражений в Logback
 }
 
 val protoSrcDir = "$projectDir/build/generated"

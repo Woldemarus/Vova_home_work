@@ -3,9 +3,10 @@ package ru.otus.protobuf;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.otus.protobuf.generated.NumberRequest;
@@ -22,9 +23,9 @@ public class KillBossGRPCClient {
 
     private final ManagedChannel channel;
     private final NumbersServiceGrpc.NumbersServiceStub asyncStub;
-    private final AtomicInteger lastServerValue = new AtomicInteger(0);
-    private final AtomicInteger currentValue = new AtomicInteger(0);
-    private volatile boolean isFirstValue = true;
+    private final BlockingQueue<Integer> serverValues =
+            new ArrayBlockingQueue<>(SERVER_LAST_VALUE - SERVER_FIRST_VALUE);
+    private int currentValue = 1;
 
     public KillBossGRPCClient(String host, int port) {
         channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
@@ -42,9 +43,13 @@ public class KillBossGRPCClient {
         StreamObserver<NumberResponse> responseObserver = new StreamObserver<>() {
             @Override
             public void onNext(NumberResponse value) {
-                int serverValue = value.getValue();
-                lastServerValue.set(serverValue);
-                logger.info("новое значение от сервера: {}", serverValue);
+                try {
+                    serverValues.put(value.getValue());
+                    logger.info("новое значение от сервера: {}", value.getValue());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.error("Ошибка при сохранении значения от сервера", e);
+                }
             }
 
             @Override
@@ -69,19 +74,14 @@ public class KillBossGRPCClient {
 
         // Основной цикл клиента
         for (int i = 0; i < CLIENT_ITERATIONS; i++) {
-            int current = currentValue.get();
-            int lastServer = lastServerValue.get();
-
-            // Для первого значения просто добавляем 1
-            if (isFirstValue) {
-                currentValue.set(1);
-                isFirstValue = false;
+            Integer lastServer = serverValues.poll(); // Получаем следующее значение из очереди
+            if (lastServer != null) {
+                currentValue = currentValue + lastServer + 1;
+                logger.info("currentValue: {} (использовано значение от сервера: {})", currentValue, lastServer);
             } else {
-                int newValue = current + lastServer + 1;
-                currentValue.set(newValue);
+                currentValue = currentValue + 1; // Если нет новых значений от сервера, просто увеличиваем на 1
+                logger.info("currentValue: {} (нет новых значений от сервера)", currentValue);
             }
-
-            logger.info("currentValue: {}", currentValue.get());
             Thread.sleep(1000);
         }
 
