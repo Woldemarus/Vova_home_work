@@ -3,10 +3,9 @@ package ru.otus.protobuf;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.otus.protobuf.generated.NumberRequest;
@@ -23,8 +22,7 @@ public class KillBossGRPCClient {
 
     private final ManagedChannel channel;
     private final NumbersServiceGrpc.NumbersServiceStub asyncStub;
-    private final BlockingQueue<Integer> serverValues =
-            new ArrayBlockingQueue<>(SERVER_LAST_VALUE - SERVER_FIRST_VALUE);
+    private final AtomicLong lastServerValue = new AtomicLong(0);
     private int currentValue = 1;
 
     public KillBossGRPCClient(String host, int port) {
@@ -43,13 +41,8 @@ public class KillBossGRPCClient {
         StreamObserver<NumberResponse> responseObserver = new StreamObserver<>() {
             @Override
             public void onNext(NumberResponse value) {
-                try {
-                    serverValues.put(value.getValue());
-                    logger.info("новое значение от сервера: {}", value.getValue());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    logger.error("Ошибка при сохранении значения от сервера", e);
-                }
+                lastServerValue.set(value.getValue());
+                logger.info("новое значение от сервера: {}", value.getValue());
             }
 
             @Override
@@ -74,12 +67,12 @@ public class KillBossGRPCClient {
 
         // Основной цикл клиента
         for (int i = 0; i < CLIENT_ITERATIONS; i++) {
-            Integer lastServer = serverValues.poll(); // Получаем следующее значение из очереди
-            if (lastServer != null) {
-                currentValue = currentValue + lastServer + 1;
+            long lastServer = lastServerValue.getAndSet(0);
+            if (lastServer != 0) {
+                currentValue = currentValue + (int)lastServer + 1;
                 logger.info("currentValue: {} (использовано значение от сервера: {})", currentValue, lastServer);
             } else {
-                currentValue = currentValue + 1; // Если нет новых значений от сервера, просто увеличиваем на 1
+                currentValue = currentValue + 1;
                 logger.info("currentValue: {} (нет новых значений от сервера)", currentValue);
             }
             Thread.sleep(1000);
