@@ -3,10 +3,14 @@ package ru.otus.homework;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Ioc {
 
     private Ioc() {}
+
+    private static final Logger logger = LoggerFactory.getLogger(Ioc.class);
 
     @SuppressWarnings("unchecked")
     public static <T> T createLoggingProxy(Class<T> clazz) {
@@ -27,7 +31,6 @@ public class Ioc {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static <T> T createClassProxy(T target, Class<T> clazz) {
         // Для классов без интерфейсов создаем прокси через наследование
         // Это более сложный подход, но для простоты пока выбросим исключение
@@ -71,8 +74,7 @@ public class Ioc {
                     logMessage.append(args[i]);
                 }
             }
-
-            System.out.println(logMessage.toString());
+            logger.info(String.valueOf(logMessage));
         }
     }
 }
