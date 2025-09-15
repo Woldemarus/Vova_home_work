@@ -30,23 +30,25 @@ public class Demo {
 
         /*Результаты прогона
 
-            17:41:08.029 [main] INFO ru.otus.homework.Demo -- === Демонстрация автоматического логирования ===
-            17:41:08.051 [main] INFO ru.otus.homework.Demo -- 1. Тестируем методы из интерфейса:
-            17:41:08.114 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, param: 42
-            17:41:08.160 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 10, 20
-            17:41:08.173 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 1, 2, hello
-            17:41:08.183 [main] INFO ru.otus.homework.Demo --
+           22:45:25.841 [main] INFO ru.otus.homework.Demo -- === Демонстрация автоматического логирования ===
+            22:45:25.847 [main] INFO ru.otus.homework.Demo -- 1. Тестируем методы из интерфейса:
+            22:45:25.882 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, param: 42
+            22:45:25.888 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 10, 20
+            22:45:25.892 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 1, 2, hello
+            22:45:25.895 [main] INFO ru.otus.homework.Demo --
             2. Тестируем дополнительные перегруженные методы:
-            17:41:08.186 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, param: строка
-            17:41:08.190 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 3.14, 2.71
-            17:41:08.200 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 100, test, true
-            17:41:08.211 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, param: [Ljava.lang.Object;@2752f6e2
-            17:41:08.211 [main] INFO ru.otus.homework.Demo --
+            22:45:25.896 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, param: строка
+            22:45:25.897 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 3.14, 2.71
+            22:45:25.902 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, params: 100, test, true
+            22:45:25.905 [main] INFO ru.otus.homework.Ioc -- executed method: calculation, param: [Ljava.lang.Object;@47f37ef1
+            22:45:25.906 [main] INFO ru.otus.homework.Demo --
             3. Тестируем метод без аннотации @Log (не логируется):
+            22:45:25.906 [main] INFO ru.otus.homework.Ioc -- executed method: noLoggingMethod, param: 999
             Этот метод не будет логироваться: 999
-            17:41:08.222 [main] INFO ru.otus.homework.Demo --
+            22:45:25.909 [main] INFO ru.otus.homework.Demo --
+            === Демонстрация завершена ===
 
-         */
+        */
 
     }
 }

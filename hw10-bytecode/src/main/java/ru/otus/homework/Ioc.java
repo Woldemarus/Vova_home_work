@@ -47,10 +47,8 @@ public class Ioc {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            // Проверяем, есть ли аннотация @Log на методе
-            if (method.isAnnotationPresent(Log.class)) {
-                logMethodCall(method, args);
-            }
+            // Логируем все вызовы методов (аннотированные методы всегда одинаковые)
+            logMethodCall(method, args);
 
             // Вызываем оригинальный метод
             return method.invoke(target, args);
