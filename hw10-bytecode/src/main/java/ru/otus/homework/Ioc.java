@@ -3,6 +3,8 @@ package ru.otus.homework;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.HashSet;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,7 +18,7 @@ public class Ioc {
     public static <T> T createLoggingProxy(Class<T> clazz) {
         try {
             T target = clazz.getDeclaredConstructor().newInstance();
-            InvocationHandler handler = new LoggingInvocationHandler(target);
+            InvocationHandler handler = new LoggingInvocationHandler(target, clazz);
 
             // Если класс реализует интерфейсы, используем их для создания прокси
             Class<?>[] interfaces = clazz.getInterfaces();
@@ -40,18 +42,56 @@ public class Ioc {
 
     static class LoggingInvocationHandler implements InvocationHandler {
         private final Object target;
+        private final Set<Method> methodsWithLogAnnotation;
 
-        LoggingInvocationHandler(Object target) {
+        LoggingInvocationHandler(Object target, Class<?> clazz) {
             this.target = target;
+            this.methodsWithLogAnnotation = findMethodsWithLogAnnotation(clazz);
         }
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            // Логируем все вызовы методов (аннотированные методы всегда одинаковые)
-            logMethodCall(method, args);
+            // Проверяем, нужно ли логировать этот метод
+            if (shouldLogMethod(method)) {
+                logMethodCall(method, args);
+            }
 
             // Вызываем оригинальный метод
             return method.invoke(target, args);
+        }
+
+        private Set<Method> findMethodsWithLogAnnotation(Class<?> clazz) {
+            Set<Method> methodsWithLog = new HashSet<>();
+
+            // Проходим по всем методам класса
+            for (Method method : clazz.getDeclaredMethods()) {
+                if (method.isAnnotationPresent(Log.class)) {
+                    methodsWithLog.add(method);
+                }
+            }
+
+            // Также проверяем методы интерфейсов и сопоставляем их с методами класса
+            for (Class<?> interfaceClass : clazz.getInterfaces()) {
+                for (Method interfaceMethod : interfaceClass.getDeclaredMethods()) {
+                    try {
+                        // Находим соответствующий метод в классе реализации
+                        Method classMethod =
+                                clazz.getDeclaredMethod(interfaceMethod.getName(), interfaceMethod.getParameterTypes());
+                        if (classMethod.isAnnotationPresent(Log.class)) {
+                            methodsWithLog.add(interfaceMethod);
+                        }
+                    } catch (NoSuchMethodException e) {
+                        // Метод не найден в классе, пропускаем
+                    }
+                }
+            }
+
+            return methodsWithLog;
+        }
+
+        private boolean shouldLogMethod(Method method) {
+            // Проверяем, есть ли этот метод в предварительно сохраненном множестве
+            return methodsWithLogAnnotation.contains(method);
         }
 
         private void logMethodCall(Method method, Object[] args) {
