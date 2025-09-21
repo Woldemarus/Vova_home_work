@@ -9,6 +9,11 @@ include("hw03-generics")
 
 include("hw04-qa")
 include("hw12-solid")
+include("HW06-annotations")
+include("hw34-multiprocess:grpc-demo")
+include("hw32-concurrentCollections:ConcurrentCollections")
+include("hw32-concurrentCollections:QueueDemo")
+include("HW31-executors")
 
 pluginManagement {
     val jgitver: String by settings
