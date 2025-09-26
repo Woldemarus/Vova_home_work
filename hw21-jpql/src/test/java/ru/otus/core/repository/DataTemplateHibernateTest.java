@@ -50,7 +50,6 @@ class DataTemplateHibernateTest extends AbstractHibernateTest {
         var loadedSavedClient = transactionManager.doInReadOnlyTransaction(
                 session -> clientTemplate.findById(session, savedClient.getId()).map(Client::clone));
 
-        logger.info(loadedSavedClient.get().toString());
         // then
         assertThat(loadedSavedClient)
                 .isPresent()
