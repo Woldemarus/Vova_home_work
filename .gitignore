@@ -37,3 +37,9 @@ out
 *.ipr
 *.idea
 
+# .gitignore
+bin/
+build/
+
+# .vscode
+.vscode/
