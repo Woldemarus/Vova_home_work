@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.otus.cachehw.HwListener;
 import ru.otus.cachehw.MyCache;
 import ru.otus.core.repository.DataTemplate;
 import ru.otus.core.sessionmanager.TransactionManager;
@@ -15,30 +14,15 @@ public class DbServiceClientImpl implements DBServiceClient {
 
     private final DataTemplate<Client> clientDataTemplate;
     private final TransactionManager transactionManager;
-    private final MyCache<Long, Client> clientCache;
-    private final MyCache<String, List<Client>> allClientsCache;
+    private final MyCache<String, Object> clientCache;
 
-    public DbServiceClientImpl(TransactionManager transactionManager, DataTemplate<Client> clientDataTemplate) {
+    public DbServiceClientImpl(
+            TransactionManager transactionManager,
+            DataTemplate<Client> clientDataTemplate,
+            MyCache<String, Object> clientCache) {
         this.transactionManager = transactionManager;
         this.clientDataTemplate = clientDataTemplate;
-        this.clientCache = new MyCache<>();
-        this.allClientsCache = new MyCache<>();
-
-        // Добавляем слушатель для логирования операций с кэшем
-        setupCacheListeners();
-    }
-
-    private void setupCacheListeners() {
-        HwListener<Long, Client> clientCacheListener = (key, value, action) -> {
-            log.info("Кэш клиентов: {} - ключ: {}, клиент: {}", action, key, value != null ? value.getName() : "null");
-        };
-
-        HwListener<String, List<Client>> allClientsCacheListener = (key, value, action) -> {
-            log.info("Кэш всех клиентов: {} - количество: {}", action, value != null ? value.size() : 0);
-        };
-
-        clientCache.addListener(clientCacheListener);
-        allClientsCache.addListener(allClientsCacheListener);
+        this.clientCache = clientCache;
     }
 
     @Override
@@ -56,9 +40,7 @@ public class DbServiceClientImpl implements DBServiceClient {
 
             // Обновляем кэш
             if (savedClient.getId() != null) {
-                clientCache.put(savedClient.getId(), savedClient);
-                // Очищаем кэш всех клиентов, так как список изменился
-                allClientsCache.clear();
+                clientCache.put("client-" + savedClient.getId(), savedClient);
             }
 
             return savedClient;
@@ -68,8 +50,10 @@ public class DbServiceClientImpl implements DBServiceClient {
     @Override
     public Optional<Client> getClient(long id) {
         // Сначала проверяем кэш
-        Client cachedClient = clientCache.get(id);
-        if (cachedClient != null) {
+        String cacheKey = "client-" + id;
+        Object cachedObject = clientCache.get(cacheKey);
+        if (cachedObject instanceof Client) {
+            Client cachedClient = (Client) cachedObject;
             log.info("✓ Клиент найден в кэше: {}", cachedClient);
             return Optional.of(cachedClient);
         }
@@ -83,7 +67,7 @@ public class DbServiceClientImpl implements DBServiceClient {
             // Сохраняем в кэш, если клиент найден
             if (clientOptional.isPresent()) {
                 log.info("✓ Клиент сохранен в кэш для ID: {}", id);
-                clientCache.put(id, clientOptional.get());
+                clientCache.put(cacheKey, clientOptional.get());
             }
 
             return clientOptional;
@@ -93,8 +77,10 @@ public class DbServiceClientImpl implements DBServiceClient {
     @Override
     public List<Client> findAll() {
         // Проверяем кэш всех клиентов
-        List<Client> cachedClients = allClientsCache.get("all");
-        if (cachedClients != null) {
+        Object cachedObject = clientCache.get("all-clients");
+        if (cachedObject instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Client> cachedClients = (List<Client>) cachedObject;
             log.info("✓ Список всех клиентов найден в кэше, количество: {}", cachedClients.size());
             return cachedClients;
         }
@@ -107,7 +93,7 @@ public class DbServiceClientImpl implements DBServiceClient {
 
             // Сохраняем в кэш
             log.info("✓ Список всех клиентов сохранен в кэш");
-            allClientsCache.put("all", clientList);
+            clientCache.put("all-clients", clientList);
 
             return clientList;
         });
@@ -122,9 +108,8 @@ public class DbServiceClientImpl implements DBServiceClient {
             // Удаляем всех клиентов одним запросом
             clientDataTemplate.deleteAll(session);
 
-            // Очищаем кэши
+            // Очищаем кэш
             clientCache.clear();
-            allClientsCache.clear();
 
             log.info("Удалены все клиенты одним запросом, количество: {}", clientsCount);
             return null;
@@ -137,13 +122,5 @@ public class DbServiceClientImpl implements DBServiceClient {
     public void clearClientCache() {
         clientCache.clear();
         log.info("✓ Кэш клиентов очищен");
-    }
-
-    /**
-     * Очищает кэш всех клиентов для демонстрации
-     */
-    public void clearAllClientsCache() {
-        allClientsCache.clear();
-        log.info("✓ Кэш всех клиентов очищен");
     }
 }

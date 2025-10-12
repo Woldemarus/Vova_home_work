@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit;
 import org.hibernate.cfg.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.otus.cachehw.HwListener;
+import ru.otus.cachehw.MyCache;
 import ru.otus.core.repository.DataTemplateHibernate;
 import ru.otus.core.repository.HibernateUtils;
 import ru.otus.core.sessionmanager.TransactionManagerHibernate;
@@ -60,11 +62,36 @@ public class DbServiceCacheDemo {
             var transactionManager = new TransactionManagerHibernate(sessionFactory);
             var clientTemplate = new DataTemplateHibernate<>(Client.class);
 
-            return new DbServiceClientImpl(transactionManager, clientTemplate);
+            // Создаем кэш
+            MyCache<String, Object> clientCache = new MyCache<>();
+
+            // Настраиваем слушатели для демонстрации
+            setupCacheListeners(clientCache);
+
+            return new DbServiceClientImpl(transactionManager, clientTemplate, clientCache);
         } catch (Exception e) {
             logger.error("Ошибка инициализации DBService: {}", e.getMessage());
             return null;
         }
+    }
+
+    private void setupCacheListeners(MyCache<String, Object> clientCache) {
+        // Слушатель для кэша клиентов
+        HwListener<String, Object> clientCacheListener = (key, value, action) -> {
+            if (value instanceof Client) {
+                Client client = (Client) value;
+                logger.info("Кэш клиентов: {} - ключ: {}, клиент: {}", action, key, client.getName());
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Client> clients = (List<Client>) value;
+                logger.info("Кэш всех клиентов: {} - количество: {}", action, clients.size());
+            } else {
+                logger.info("Кэш: {} - ключ: {}, значение: {}", action, key, value);
+            }
+        };
+
+        // Добавляем слушатель
+        clientCache.addListener(clientCacheListener);
     }
 
     private void demonstrateCache(DBServiceClient dbService) {
@@ -103,9 +130,9 @@ public class DbServiceCacheDemo {
         // Тестируем кэш для findAll
         logger.info("\n6. Тестируем кэш для findAll...");
 
-        // Очищаем кэш всех клиентов перед первым чтением
-        logger.info("Очищаем кэш всех клиентов перед первым чтением...");
-        ((DbServiceClientImpl) dbService).clearAllClientsCache();
+        // Очищаем кэш перед первым чтением всех клиентов
+        logger.info("Очищаем кэш перед первым чтением всех клиентов...");
+        ((DbServiceClientImpl) dbService).clearClientCache();
 
         // Первое чтение всех клиентов - из БД
         logger.info("Первое чтение всех клиентов (из БД)...");
