@@ -12,6 +12,8 @@ include("hw12-solid")
 include("HW06-annotations")
 include("hw10-bytecode")
 include("hw21-jpql")
+include("hw22-cache")
+include("hw24-webServer")
 
 include("hw34-multiprocess:grpc-demo")
 include("hw32-concurrentCollections:ConcurrentCollections")
