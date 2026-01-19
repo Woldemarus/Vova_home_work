@@ -14,11 +14,9 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.MaybeInaccessibleMessage;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import ru.otus.hwsm.bot.handler.CallbackHandler;
-import ru.otus.hwsm.bot.handler.CommandHandler;
-import ru.otus.hwsm.bot.handler.GameHandler;
-import ru.otus.hwsm.bot.handler.TelegramClientProvider;
+import ru.otus.hwsm.bot.handler.*;
 import ru.otus.hwsm.service.UserService;
 
 @Slf4j
@@ -37,6 +35,8 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
     private final CallbackHandler callbackHandler;
     private final TelegramClientProvider telegramClientProvider;
     private final UserService userService;
+
+    private final KeyboardFactory keyboardFactory = new KeyboardFactory();
 
     public HwsmTelegramBotSimple(
             CommandHandler commandHandler,
@@ -101,7 +101,7 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
             } else {
                 // Остальная логика команд
                 switch (messageText) {
-                    case "/question" -> gameHandler.handleQuestionCommand(message);
+                    case "/question" -> gameHandler.handleQuestionCommandWrapper(message);
                     case "/continue" -> gameHandler.handleContinueCommand(message);
                     case "/newgame" -> gameHandler.handleNewGameCommand(message);
                     case "/stats" -> commandHandler.handleStatsCommand(message);
@@ -162,7 +162,11 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
             }
         }
 
-        sendMessage(chatId, messageText.toString());
+        if (activeGame.isPresent()) {
+            sendMessageWithKeyboard(chatId, messageText.toString(), keyboardFactory.createActiveGameKeyboard());
+        } else {
+            sendMessageWithKeyboard(chatId, messageText.toString(), keyboardFactory.createBeginGameKeyBoard());
+        }
     }
 
     private String getGameWord(Long count) {
@@ -178,6 +182,11 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
     private void handleCallbackQuery(CallbackQuery callbackQuery) {
         String callbackData = callbackQuery.getData();
         Long userId = callbackQuery.getFrom().getId();
+
+        if ("start_new_game".equals(callbackData)) {
+            handleStartNewGameCallback(callbackQuery);
+            return;
+        }
         Long chatId = callbackQuery.getMessage().getChatId();
 
         log.debug("Received callback: '{}' from user: {}", callbackData, userId);
@@ -196,6 +205,8 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
                 handleContinueGameCallback(callbackQuery);
             } else if (callbackData.equals("new_game")) {
                 handleNewGameCallback(callbackQuery);
+            } else if (callbackData.equals("start_first_question")) {
+                gameHandler.handleQuestionCommandWrapper(callbackQuery);
             }
         } catch (Exception e) {
             log.error("Error handling callback from user {}: {}", userId, e.getMessage(), e);
@@ -231,7 +242,7 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
             newMessage.setMessageId(originalMessage.getMessageId());
             newMessage.setDate(originalMessage.getDate());
 
-            gameHandler.handleQuestionCommand(newMessage);
+            gameHandler.handleQuestionCommandWrapper(newMessage);
         } else {
             // Обработка случая, когда сообщение недоступно
             log.warn("Message is inaccessible in callback: {}", callbackQuery.getId());
@@ -292,6 +303,59 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
             telegramClientProvider.getClient().execute(message);
         } catch (TelegramApiException e) {
             log.error("Failed to send message to chat {}: {}", chatId, e.getMessage());
+        }
+    }
+
+    private void sendMessageWithKeyboard(Long chatId, String text, InlineKeyboardMarkup keyboard) {
+        try {
+            SendMessage message = SendMessage.builder()
+                    .chatId(chatId.toString())
+                    .text(text)
+                    .parseMode("Markdown")
+                    .replyMarkup(keyboard)
+                    .build();
+
+            telegramClientProvider.getClient().execute(message);
+        } catch (TelegramApiException e) {
+            log.error("Failed to send message with keyboard to chat {}: {}", chatId, e.getMessage());
+        }
+    }
+
+    private void handleStartNewGameCallback(CallbackQuery callbackQuery) {
+        // Отвечаем на callback query
+        try {
+            AnswerCallbackQuery answer = AnswerCallbackQuery.builder()
+                    .callbackQueryId(callbackQuery.getId())
+                    .build();
+            telegramClientProvider.getClient().execute(answer);
+        } catch (TelegramApiException e) {
+            log.error("Failed to answer callback query: {}", e.getMessage());
+        }
+
+        // Дублируем логику /newgame
+        MaybeInaccessibleMessage maybeMessage = callbackQuery.getMessage();
+        if (maybeMessage instanceof org.telegram.telegrambots.meta.api.objects.message.Message) {
+            org.telegram.telegrambots.meta.api.objects.message.Message originalMessage =
+                    (org.telegram.telegrambots.meta.api.objects.message.Message) maybeMessage;
+
+            // Создаем новое сообщение с теми же данными
+            org.telegram.telegrambots.meta.api.objects.message.Message newMessage =
+                    new org.telegram.telegrambots.meta.api.objects.message.Message();
+            newMessage.setChat(originalMessage.getChat());
+            newMessage.setFrom(callbackQuery.getFrom());
+            newMessage.setText("/newgame");
+            newMessage.setMessageId(originalMessage.getMessageId());
+            newMessage.setDate(originalMessage.getDate());
+
+            gameHandler.handleNewGameCommand(newMessage);
+        } else {
+            // Обработка случая, когда сообщение недоступно
+            log.warn("Message is inaccessible in callback: {}", callbackQuery.getId());
+            // Отправляем в личку, так как inline-сообщение недоступно
+            sendErrorMessage(
+                    callbackQuery.getFrom().getId(),
+                    "❌ Не удалось начать новую игру из этого сообщения.\n"
+                            + "Пожалуйста, напишите /newgame напрямую в чат с ботом.");
         }
     }
 

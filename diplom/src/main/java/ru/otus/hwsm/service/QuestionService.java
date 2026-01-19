@@ -24,7 +24,7 @@ public class QuestionService {
      */
     @Transactional(readOnly = true)
     public Optional<Question> getRandomQuestionByDifficulty(Integer difficultyLevel) {
-        List<Question> questions = questionRepository.findByDifficultyLevel(difficultyLevel);
+        List<Question> questions = questionRepository.findByDifficultyLevelWithOptions(difficultyLevel);
 
         if (questions.isEmpty()) {
             log.warn("No questions found for difficulty level: {}", difficultyLevel);

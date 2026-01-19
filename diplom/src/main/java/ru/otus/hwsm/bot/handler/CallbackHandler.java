@@ -109,6 +109,49 @@ public class CallbackHandler {
         }
     }
 
+    public void handleStartFirstQuestionCallback(CallbackQuery callbackQuery) {
+        Long chatId = callbackQuery.getMessage().getChatId();
+        Integer messageId = callbackQuery.getMessage().getMessageId();
+
+        try {
+            Optional<Game> activeGameOpt =
+                    userService.findActiveGame(callbackQuery.getFrom().getId());
+            if (activeGameOpt.isEmpty()) {
+                messageSender.editMessage(chatId, messageId, "❌ Активная игра не найдена.");
+                return;
+            }
+
+            Game activeGame = activeGameOpt.get();
+            Optional<Question> questionOpt = gameService.getCurrentQuestion(activeGame);
+
+            if (questionOpt.isEmpty()) {
+                messageSender.editMessage(chatId, messageId, "❌ Не удалось загрузить вопрос. Попробуйте еще раз.");
+                return;
+            }
+
+            Question question = questionOpt.get();
+            String questionText = buildQuestionMessage(activeGame, question);
+
+            messageSender.editMessageWithKeyboard(
+                    chatId,
+                    messageId,
+                    questionText,
+                    keyboardFactory.createQuestionKeyboard(
+                            question,
+                            activeGame.getGameLifelines().stream()
+                                    .map(lifeline -> lifeline.getLifelineType())
+                                    .toList()));
+
+        } catch (Exception e) {
+            log.error(
+                    "Error handling start first question callback for user {}: {}",
+                    callbackQuery.getFrom().getId(),
+                    e.getMessage(),
+                    e);
+            messageSender.editMessage(chatId, messageId, "❌ Произошла ошибка при загрузке вопроса.");
+        }
+    }
+
     public void handleTakeMoneyCallback(CallbackQuery callbackQuery) {
         Long chatId = callbackQuery.getMessage().getChatId();
         Integer messageId = callbackQuery.getMessage().getMessageId();
@@ -237,5 +280,25 @@ public class CallbackHandler {
             case "audience_poll" -> GameLifeline.LifelineType.AUDIENCE_POLL;
             default -> throw new IllegalArgumentException("Unknown lifeline type: " + type);
         };
+    }
+
+    private String buildQuestionMessage(Game game, Question question) {
+        return String.format(
+                """
+            🎯 **Вопрос %d из 15**
+            💰 Текущий выигрыш: %d ₽
+            🛡️ Несгораемая сумма: %d ₽
+
+            **%s**
+
+            %s
+
+            Выберите ответ или используйте подсказку:
+            """,
+                game.getCurrentQuestionNumber(),
+                game.getCurrentPrizeAmount(),
+                game.getGuaranteedPrizeAmount(),
+                question.getQuestionText(),
+                formatQuestionOptions(question));
     }
 }

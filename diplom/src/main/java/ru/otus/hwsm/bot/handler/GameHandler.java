@@ -4,6 +4,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import ru.otus.hwsm.entity.Game;
 import ru.otus.hwsm.entity.Question;
@@ -23,10 +24,17 @@ public class GameHandler {
     private final MessageSender messageSender;
     private final KeyboardFactory keyboardFactory;
 
-    public void handleQuestionCommand(Message message) {
+    public void handleQuestionCommandWrapper(Message message) {
         Long chatId = message.getChatId();
         org.telegram.telegrambots.meta.api.objects.User telegramUser = message.getFrom();
+        this.handleQuestionCommand(chatId, telegramUser);
+    }
 
+    public void handleQuestionCommandWrapper(CallbackQuery callbackQuery) {
+        handleQuestionCommand(callbackQuery.getMessage().getChatId(), callbackQuery.getFrom());
+    }
+
+    private void handleQuestionCommand(Long chatId, org.telegram.telegrambots.meta.api.objects.User telegramUser) {
         try {
             Optional<Game> activeGameOpt = userService.findActiveGame(telegramUser.getId());
             if (activeGameOpt.isEmpty()) {
@@ -61,7 +69,7 @@ public class GameHandler {
     }
 
     public void handleContinueCommand(Message message) {
-        handleQuestionCommand(message); // Продолжить = показать текущий вопрос
+        handleQuestionCommandWrapper(message); // Продолжить = показать текущий вопрос
     }
 
     public void handleNewGameCommand(Message message) {
@@ -79,11 +87,11 @@ public class GameHandler {
                 🎯 Вопрос %d из 15
                 💰 Текущий выигрыш: %d ₽
 
-                Для получения первого вопроса нажмите /question
+                Для получения первого вопроса нажмите далее или введите команду /question
                 """,
                     newGame.getCurrentQuestionNumber(), newGame.getCurrentPrizeAmount());
 
-            messageSender.sendMessage(chatId, messageText);
+            messageSender.sendMessageWithKeyboard(chatId, messageText, keyboardFactory.createStartGameKeyboard());
 
         } catch (Exception e) {
             log.error("Error handling /newgame command for user {}: {}", telegramUser.getId(), e.getMessage(), e);

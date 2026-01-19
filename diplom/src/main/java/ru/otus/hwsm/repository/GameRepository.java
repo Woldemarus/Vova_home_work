@@ -16,7 +16,8 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     Optional<Game> findByUserAndStatus(User user, Game.GameStatus status);
 
-    @Query("SELECT g FROM Game g WHERE g.user.telegramUserId = :telegramUserId AND g.status = :status")
+    @Query(
+            "SELECT g FROM Game g LEFT JOIN FETCH g.gameLifelines WHERE g.user.telegramUserId = :telegramUserId AND g.status = :status")
     Optional<Game> findActiveGameByTelegramUserId(
             @Param("telegramUserId") Long telegramUserId, @Param("status") Game.GameStatus status);
 

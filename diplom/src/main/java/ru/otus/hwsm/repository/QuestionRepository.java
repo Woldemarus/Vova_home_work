@@ -18,6 +18,12 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     List<Question> findByDifficultyLevel(Integer difficultyLevel);
 
     /**
+     * Найти все вопросы по уровню сложности Lazy
+     */
+    @Query("SELECT q FROM Question q LEFT JOIN FETCH q.options WHERE q.difficultyLevel = :difficultyLevel")
+    List<Question> findByDifficultyLevelWithOptions(@Param("difficultyLevel") Integer difficultyLevel);
+
+    /**
      * Найти вопрос по ID с загруженными вариантами ответов
      */
     @Query("SELECT q FROM Question q LEFT JOIN FETCH q.options WHERE q.id = :questionId")

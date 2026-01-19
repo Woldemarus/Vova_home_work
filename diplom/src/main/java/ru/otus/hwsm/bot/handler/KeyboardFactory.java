@@ -13,6 +13,20 @@ import ru.otus.hwsm.entity.QuestionOption;
 @Component
 public class KeyboardFactory {
 
+    public InlineKeyboardMarkup createBeginGameKeyBoard() {
+        InlineKeyboardButton startButton = InlineKeyboardButton.builder()
+                .text("🎮 Начать игру")
+                .callbackData("start_new_game")
+                .build();
+
+        List<InlineKeyboardRow> rows = new ArrayList<>();
+        InlineKeyboardRow row = new InlineKeyboardRow();
+        row.add(startButton);
+        rows.add(row);
+
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
+    }
+
     public InlineKeyboardMarkup createActiveGameKeyboard() {
         List<InlineKeyboardRow> rows = new ArrayList<>(); // ✅ Изменяем тип на List<InlineKeyboardRow>
 
@@ -98,6 +112,19 @@ public class KeyboardFactory {
                 .callbackData("take_money")
                 .build());
         rows.add(takeMoneyRow);
+
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
+    }
+
+    public InlineKeyboardMarkup createStartGameKeyboard() {
+        List<InlineKeyboardRow> rows = new ArrayList<>();
+
+        InlineKeyboardRow row = new InlineKeyboardRow();
+        row.add(InlineKeyboardButton.builder()
+                .text("🎯 Начать")
+                .callbackData("start_first_question")
+                .build());
+        rows.add(row);
 
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
