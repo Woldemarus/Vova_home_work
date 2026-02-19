@@ -4,11 +4,13 @@ server:
 spring:
   application:
     name: hwsm-telegram-bot
-  
+  config:
+    import: optional:file:diplom/application-local.properties
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/hwsmdev
-    username: hwsmdev
-    password: HwSm2024!SecureP@ssw0rd#Dev
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/hwsmdev}
+    username: ${SPRING_DATASOURCE_USERNAME:hwsmdev}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -29,6 +31,8 @@ logging:
   level:
     ru.otus.hwsm: DEBUG
     org.springframework: INFO
+    org.springframework.boot.context.config: DEBUG  # Отладка загрузки конфигурации
+    org.springframework.core.env: DEBUG              # Отладка PropertySource
     org.hibernate: INFO
     org.telegram: INFO
     org.telegram.telegrambots: DEBUG  # Добавляем для отладки Telegram
@@ -41,8 +45,8 @@ telegram:
     # Токен и имя теперь будут загружаться ТОЛЬКО из переменных окружения
     # Удаляем значения по умолчанию, чтобы приложение падало, если они не заданы
     # Это повышает безопасность
-    token: 8455469213:AAGx0Uj7xb2x1jXpTU616IYMSsDTCRjB7oU          # Значение будет взято из переменной окружения
-    username: happy_millioner_bot    # Значение будет взято из переменной окружения
+    token: ${TELEGRAM_BOT_TOKEN}
+    username: ${TELEGRAM_BOT_USERNAME}
   bots:
     enabled: true
 

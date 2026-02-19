@@ -9,7 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.otus.hwsm.entity.*;
+import ru.otus.hwsm.repository.GameAnswerRepository;
 import ru.otus.hwsm.repository.GameRepository;
+import ru.otus.hwsm.repository.QuestionRepository;
 
 @Slf4j
 @Service
@@ -17,9 +19,28 @@ import ru.otus.hwsm.repository.GameRepository;
 public class GameService {
 
     private final GameRepository gameRepository;
+    private final GameAnswerRepository gameAnswerRepository;
     private final QuestionService questionService;
+    private final QuestionRepository questionRepository;
 
     private List<Integer> prizeLevels;
+
+    /**
+     * Сохранить ответ игрока в базу данных
+     */
+    private void saveGameAnswer(GameAnswer gameAnswer) {
+        log.debug(
+                "[GAME_DEBUG] Saving GameAnswer: gameId={}, questionId={}, selectedOptionId={}, isCorrect={}",
+                gameAnswer.getGame().getId(),
+                gameAnswer.getQuestion().getId(),
+                gameAnswer.getSelectedOption() != null
+                        ? gameAnswer.getSelectedOption().getId()
+                        : "null",
+                gameAnswer.getIsCorrect());
+
+        GameAnswer savedAnswer = gameAnswerRepository.save(gameAnswer);
+        log.debug("[GAME_DEBUG] Successfully saved GameAnswer with ID: {}", savedAnswer.getId());
+    }
 
     @PostConstruct
     private void initPrizeLevels() {
@@ -31,30 +52,60 @@ public class GameService {
     /**
      * Получить текущий вопрос для активной игры
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<Question> getCurrentQuestion(Game game) {
         if (game.getStatus() != Game.GameStatus.ACTIVE) {
             log.warn("Trying to get question for non-active game: {}", game.getId());
             return Optional.empty();
         }
 
-        return questionService.getRandomQuestionByDifficulty(game.getCurrentQuestionNumber());
+        // Если у игры уже есть текущий вопрос, используем его
+        if (game.getCurrentQuestionId() != null) {
+            log.debug(
+                    "[GAME_DEBUG] Using existing current question ID {} for game {}",
+                    game.getCurrentQuestionId(),
+                    game.getId());
+            return questionRepository.findByIdWithOptions(game.getCurrentQuestionId());
+        }
+
+        // Иначе генерируем новый вопрос
+        Optional<Question> questionOpt = questionService.getRandomQuestionByDifficultyExcludingAnswered(
+                game.getCurrentQuestionNumber(), game.getId());
+
+        // Сохраняем ID вопроса в игре
+        questionOpt.ifPresent(question -> {
+            game.setCurrentQuestionId(question.getId());
+            gameRepository.save(game);
+            log.debug("[GAME_DEBUG] Set current question ID {} for game {}", question.getId(), game.getId());
+        });
+
+        return questionOpt;
     }
 
     /**
      * Обработать ответ игрока
      */
     @Transactional
-    public GameAnswerResult processAnswer(Game game, Question question, String selectedOptionLetter) {
-        boolean isCorrect = questionService.isAnswerCorrect(question.getId(), selectedOptionLetter);
+    public GameAnswerResult processAnswer(Game game, Question question, Long selectedOptionId) {
+        log.debug(
+                "[GAME_DEBUG] Processing answer: gameId={}, questionId={}, selectedOptionId={}",
+                game.getId(),
+                question.getId(),
+                selectedOptionId);
+
+        boolean isCorrect = questionService.isAnswerCorrectByOptionId(selectedOptionId);
+        log.debug("[GAME_DEBUG] Answer is correct: {}", isCorrect);
 
         // Создаем запись ответа
         GameAnswer gameAnswer = GameAnswer.builder()
                 .game(game)
                 .question(question)
-                .selectedOption(getSelectedOption(question, selectedOptionLetter))
+                .selectedOption(getSelectedOption(selectedOptionId))
                 .isCorrect(isCorrect)
                 .build();
+
+        log.debug(
+                "[GAME_DEBUG] Created GameAnswer: id={}, isCorrect={}", gameAnswer.getId(), gameAnswer.getIsCorrect());
 
         if (isCorrect) {
             return handleCorrectAnswer(game, gameAnswer);
@@ -67,6 +118,11 @@ public class GameService {
         int currentLevel = game.getCurrentQuestionNumber();
         int newPrizeAmount = getPrizeForLevel(currentLevel);
 
+        log.debug(
+                "[GAME_DEBUG] Handling correct answer: currentLevel={}, newPrizeAmount={}",
+                currentLevel,
+                newPrizeAmount);
+
         game.setCurrentPrizeAmount(newPrizeAmount);
 
         // Проверяем несгораемые суммы
@@ -76,10 +132,20 @@ public class GameService {
             game.setGuaranteedPrizeAmount(32000);
         }
 
+        // Сохраняем ответ в базу данных
+        saveGameAnswer(gameAnswer);
+        log.debug(
+                "[GAME_DEBUG] Saved GameAnswer to database: gameId={}, questionId={}, isCorrect={}",
+                gameAnswer.getGame().getId(),
+                gameAnswer.getQuestion().getId(),
+                gameAnswer.getIsCorrect());
+
         // Проверяем, завершена ли игра (15 вопросов)
         if (currentLevel >= 15) {
             game.setStatus(Game.GameStatus.COMPLETED);
             game.setCompletedAt(LocalDateTime.now());
+            // Очищаем ID текущего вопроса
+            game.setCurrentQuestionId(null);
             log.info("Game {} completed successfully with prize: {}", game.getId(), newPrizeAmount);
 
             gameRepository.save(game);
@@ -91,6 +157,8 @@ public class GameService {
         } else {
             // Переходим к следующему вопросу
             game.setCurrentQuestionNumber(currentLevel + 1);
+            // Очищаем ID текущего вопроса для генерации нового
+            game.setCurrentQuestionId(null);
             gameRepository.save(game);
 
             return GameAnswerResult.builder()
@@ -103,12 +171,27 @@ public class GameService {
     }
 
     private GameAnswerResult handleIncorrectAnswer(Game game, GameAnswer gameAnswer) {
+        log.debug(
+                "[GAME_DEBUG] Handling incorrect answer: gameId={}, questionNumber={}",
+                game.getId(),
+                game.getCurrentQuestionNumber());
+
         game.setStatus(Game.GameStatus.FAILED);
         game.setCompletedAt(LocalDateTime.now());
+        // Очищаем ID текущего вопроса
+        game.setCurrentQuestionId(null);
 
         // Игрок получает гарантированную сумму
         int finalPrize = game.getGuaranteedPrizeAmount();
         game.setCurrentPrizeAmount(finalPrize);
+
+        // Сохраняем ответ в базу данных
+        saveGameAnswer(gameAnswer);
+        log.debug(
+                "[GAME_DEBUG] Saved GameAnswer to database: gameId={}, questionId={}, isCorrect={}",
+                gameAnswer.getGame().getId(),
+                gameAnswer.getQuestion().getId(),
+                gameAnswer.getIsCorrect());
 
         gameRepository.save(game);
 
@@ -152,14 +235,14 @@ public class GameService {
         gameRepository.save(game);
 
         return switch (lifelineType) {
-            case FIFTY_FIFTY -> processFiftyFifty(question);
-            case PHONE_FRIEND -> processPhoneFriend(question);
-            case AUDIENCE_POLL -> processAudiencePoll(question);
+            case FIFTY_FIFTY -> processFiftyFifty(game, question);
+            case PHONE_FRIEND -> processPhoneFriend(game, question);
+            case AUDIENCE_POLL -> processAudiencePoll(game, question);
         };
     }
 
-    private LifelineResult processFiftyFifty(Question question) {
-        List<QuestionOption> remainingOptions = questionService.getFiftyFiftyOptions(question.getId());
+    private LifelineResult processFiftyFifty(Game game, Question question) {
+        List<QuestionOption> remainingOptions = questionService.getFiftyFiftyOptions(game.getId(), question.getId());
 
         return LifelineResult.builder()
                 .success(true)
@@ -169,7 +252,7 @@ public class GameService {
                 .build();
     }
 
-    private LifelineResult processPhoneFriend(Question question) {
+    private LifelineResult processPhoneFriend(Game game, Question question) {
         Optional<QuestionOption> correctAnswer = questionService.getCorrectAnswer(question.getId());
 
         if (correctAnswer.isEmpty()) {
@@ -183,7 +266,7 @@ public class GameService {
         boolean friendIsRight = Math.random() < 0.8;
         String friendAnswer = friendIsRight
                 ? correctAnswer.get().getOptionLetter()
-                : getRandomWrongAnswer(question, correctAnswer.get().getOptionLetter());
+                : getRandomWrongAnswer(game, question, correctAnswer.get().getOptionLetter());
 
         String confidence = friendIsRight ? "уверен" : "думаю";
 
@@ -195,7 +278,7 @@ public class GameService {
                 .build();
     }
 
-    private LifelineResult processAudiencePoll(Question question) {
+    private LifelineResult processAudiencePoll(Game game, Question question) {
         Optional<QuestionOption> correctAnswer = questionService.getCorrectAnswer(question.getId());
 
         if (correctAnswer.isEmpty()) {
@@ -222,6 +305,8 @@ public class GameService {
     public int takeTheMoney(Game game) {
         game.setStatus(Game.GameStatus.COMPLETED);
         game.setCompletedAt(LocalDateTime.now());
+        // Очищаем ID текущего вопроса
+        game.setCurrentQuestionId(null);
 
         int finalPrize = game.getCurrentPrizeAmount();
         gameRepository.save(game);
@@ -230,11 +315,8 @@ public class GameService {
         return finalPrize;
     }
 
-    private QuestionOption getSelectedOption(Question question, String optionLetter) {
-        return question.getOptions().stream()
-                .filter(option -> option.getOptionLetter().equals(optionLetter))
-                .findFirst()
-                .orElse(null);
+    private QuestionOption getSelectedOption(Long optionId) {
+        return questionService.getOptionById(optionId).orElse(null);
     }
 
     private int getPrizeForLevel(int level) {
@@ -244,8 +326,10 @@ public class GameService {
         return prizeLevels.get(level - 1);
     }
 
-    private String getRandomWrongAnswer(Question question, String correctLetter) {
-        List<String> wrongLetters = question.getOptions().stream()
+    private String getRandomWrongAnswer(Game game, Question question, String correctLetter) {
+        List<QuestionOption> shuffledOptions =
+                questionService.getShuffledQuestionOptions(game.getId(), question.getId());
+        List<String> wrongLetters = shuffledOptions.stream()
                 .filter(option -> !option.getOptionLetter().equals(correctLetter))
                 .map(QuestionOption::getOptionLetter)
                 .toList();

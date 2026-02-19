@@ -31,6 +31,9 @@ public class Game {
     @Column(name = "current_question_number")
     private Integer currentQuestionNumber;
 
+    @Column(name = "current_question_id")
+    private Long currentQuestionId;
+
     @Column(name = "current_prize_amount")
     private Integer currentPrizeAmount;
 

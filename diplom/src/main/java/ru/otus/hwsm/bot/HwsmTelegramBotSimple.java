@@ -9,6 +9,7 @@ import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsume
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -35,20 +36,21 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
     private final CallbackHandler callbackHandler;
     private final TelegramClientProvider telegramClientProvider;
     private final UserService userService;
-
-    private final KeyboardFactory keyboardFactory = new KeyboardFactory();
+    private final KeyboardFactory keyboardFactory;
 
     public HwsmTelegramBotSimple(
             CommandHandler commandHandler,
             GameHandler gameHandler,
             CallbackHandler callbackHandler,
             TelegramClientProvider telegramClientProvider,
-            UserService userService) {
+            UserService userService,
+            KeyboardFactory keyboardFactory) {
         this.commandHandler = commandHandler;
         this.gameHandler = gameHandler;
         this.callbackHandler = callbackHandler;
         this.telegramClientProvider = telegramClientProvider;
         this.userService = userService;
+        this.keyboardFactory = keyboardFactory;
     }
 
     @Override
@@ -192,8 +194,8 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
         log.debug("Received callback: '{}' from user: {}", callbackData, userId);
 
         try {
-            // Отвечаем на callback сразу, чтобы убрать "часики" у пользователя
-            answerCallbackQuery(callbackQuery.getId());
+            // Отвечаем на callback сразу, чтобы убрать "часики" у пользователя и убираем клавиатуру
+            answerCallbackQueryAndRemoveKeyboard(callbackQuery);
 
             if (callbackData.startsWith("answer_")) {
                 callbackHandler.handleAnswerCallback(callbackQuery, callbackData);
@@ -207,6 +209,8 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
                 handleNewGameCallback(callbackQuery);
             } else if (callbackData.equals("start_first_question")) {
                 gameHandler.handleQuestionCommandWrapper(callbackQuery);
+            } else if (callbackData.equals("start_question")) {
+                gameHandler.handleQuestionCommandWrapper(callbackQuery);
             }
         } catch (Exception e) {
             log.error("Error handling callback from user {}: {}", userId, e.getMessage(), e);
@@ -214,14 +218,24 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
         }
     }
 
-    private void answerCallbackQuery(String callbackQueryId) {
+    private void answerCallbackQueryAndRemoveKeyboard(CallbackQuery callbackQuery) {
         try {
+            // Отвечаем на callback query
             AnswerCallbackQuery answer = AnswerCallbackQuery.builder()
-                    .callbackQueryId(callbackQueryId)
+                    .callbackQueryId(callbackQuery.getId())
                     .build();
             telegramClientProvider.getClient().execute(answer);
+
+            // Убираем клавиатуру у сообщения, чтобы кнопки не мигали
+            EditMessageReplyMarkup editMarkup = EditMessageReplyMarkup.builder()
+                    .chatId(callbackQuery.getMessage().getChatId().toString())
+                    .messageId(callbackQuery.getMessage().getMessageId())
+                    .replyMarkup(null) // Убираем клавиатуру
+                    .build();
+            telegramClientProvider.getClient().execute(editMarkup);
+
         } catch (TelegramApiException e) {
-            log.warn("Failed to answer callback query: {}", e.getMessage());
+            log.warn("Failed to answer callback query or remove keyboard: {}", e.getMessage());
         }
     }
 
@@ -287,7 +301,6 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
                 chatId,
                 "❓ Неизвестная команда.\n\n" + "Доступные команды:\n"
                         + "• /start - Начать игру\n"
-                        + "• /question - Текущий вопрос\n"
                         + "• /stats - Статистика\n"
                         + "• /help - Помощь");
     }
@@ -322,15 +335,8 @@ public class HwsmTelegramBotSimple implements SpringLongPollingBot, LongPollingU
     }
 
     private void handleStartNewGameCallback(CallbackQuery callbackQuery) {
-        // Отвечаем на callback query
-        try {
-            AnswerCallbackQuery answer = AnswerCallbackQuery.builder()
-                    .callbackQueryId(callbackQuery.getId())
-                    .build();
-            telegramClientProvider.getClient().execute(answer);
-        } catch (TelegramApiException e) {
-            log.error("Failed to answer callback query: {}", e.getMessage());
-        }
+        // Отвечаем на callback query и убираем клавиатуру
+        answerCallbackQueryAndRemoveKeyboard(callbackQuery);
 
         // Дублируем логику /newgame
         MaybeInaccessibleMessage maybeMessage = callbackQuery.getMessage();

@@ -1,5 +1,6 @@
 package ru.otus.hwsm.bot.handler;
 
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,7 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import ru.otus.hwsm.entity.Game;
 import ru.otus.hwsm.entity.Question;
+import ru.otus.hwsm.entity.QuestionOption;
 import ru.otus.hwsm.entity.User;
 import ru.otus.hwsm.service.GameService;
 import ru.otus.hwsm.service.QuestionService;
@@ -27,14 +29,15 @@ public class GameHandler {
     public void handleQuestionCommandWrapper(Message message) {
         Long chatId = message.getChatId();
         org.telegram.telegrambots.meta.api.objects.User telegramUser = message.getFrom();
-        this.handleQuestionCommand(chatId, telegramUser);
+        this.handleQuestionCommand(chatId, telegramUser, message.getMessageId());
     }
 
     public void handleQuestionCommandWrapper(CallbackQuery callbackQuery) {
-        handleQuestionCommand(callbackQuery.getMessage().getChatId(), callbackQuery.getFrom());
+        handleQuestionCommand(callbackQuery.getMessage().getChatId(), callbackQuery.getFrom(), null);
     }
 
-    private void handleQuestionCommand(Long chatId, org.telegram.telegrambots.meta.api.objects.User telegramUser) {
+    private void handleQuestionCommand(
+            Long chatId, org.telegram.telegrambots.meta.api.objects.User telegramUser, Integer previousMessageId) {
         try {
             Optional<Game> activeGameOpt = userService.findActiveGame(telegramUser.getId());
             if (activeGameOpt.isEmpty()) {
@@ -53,14 +56,16 @@ public class GameHandler {
             Question question = questionOpt.get();
             String questionText = buildQuestionMessage(activeGame, question);
 
-            messageSender.sendMessageWithKeyboard(
+            messageSender.sendMessageWithKeyboardAndRemovePrevious(
                     chatId,
                     questionText,
                     keyboardFactory.createQuestionKeyboard(
+                            activeGame.getId(),
                             question,
                             activeGame.getGameLifelines().stream()
                                     .map(lifeline -> lifeline.getLifelineType())
-                                    .toList()));
+                                    .toList()),
+                    previousMessageId);
 
         } catch (Exception e) {
             log.error("Error handling /question command for user {}: {}", telegramUser.getId(), e.getMessage(), e);
@@ -87,7 +92,7 @@ public class GameHandler {
                 🎯 Вопрос %d из 15
                 💰 Текущий выигрыш: %d ₽
 
-                Для получения первого вопроса нажмите далее или введите команду /question
+                Для получения первого вопроса нажмите далее
                 """,
                     newGame.getCurrentQuestionNumber(), newGame.getCurrentPrizeAmount());
 
@@ -116,12 +121,15 @@ public class GameHandler {
                 game.getCurrentPrizeAmount(),
                 game.getGuaranteedPrizeAmount(),
                 question.getQuestionText(),
-                formatQuestionOptions(question));
+                formatQuestionOptions(game, question));
     }
 
-    private String formatQuestionOptions(Question question) {
+    private String formatQuestionOptions(Game game, Question question) {
         StringBuilder options = new StringBuilder();
-        for (var option : question.getOptions()) {
+        List<QuestionOption> shuffledOptions =
+                questionService.getShuffledQuestionOptions(game.getId(), question.getId());
+
+        for (var option : shuffledOptions) {
             options.append(String.format("**%s:** %s\n", option.getOptionLetter(), option.getOptionText()));
         }
         return options.toString();

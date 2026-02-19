@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -105,6 +106,55 @@ public class MessageSender {
         } catch (TelegramApiException e) {
             log.error("Не удалось отредактировать сообщение с клавиатурой в чате {}: {}", chatId, e.getMessage(), e);
         }
+    }
+
+    /**
+     * Редактирует сообщение и убирает клавиатуру (чтобы кнопки не мигали)
+     */
+    public void editMessageAndRemoveKeyboard(Long chatId, Integer messageId, String text) {
+        EditMessageText editMessage = EditMessageText.builder()
+                .chatId(chatId.toString())
+                .messageId(messageId)
+                .text(text)
+                .parseMode("Markdown")
+                .replyMarkup(null) // Убираем клавиатуру
+                .build();
+
+        try {
+            telegramClient.execute(editMessage);
+            log.debug("Сообщение отредактировано и клавиатура убрана в чате {}", chatId);
+        } catch (TelegramApiException e) {
+            log.error(
+                    "Не удалось отредактировать сообщение и убрать клавиатуру в чате {}: {}",
+                    chatId,
+                    e.getMessage(),
+                    e);
+        }
+    }
+
+    /**
+     * Отправляет сообщение с клавиатурой и пытается убрать клавиатуру у предыдущего сообщения
+     * (если передан messageId предыдущего сообщения)
+     */
+    public void sendMessageWithKeyboardAndRemovePrevious(
+            Long chatId, String text, InlineKeyboardMarkup keyboard, Integer previousMessageId) {
+        // Сначала убираем клавиатуру у предыдущего сообщения (если есть)
+        if (previousMessageId != null) {
+            try {
+                EditMessageReplyMarkup editMarkup = EditMessageReplyMarkup.builder()
+                        .chatId(chatId.toString())
+                        .messageId(previousMessageId)
+                        .replyMarkup(null)
+                        .build();
+                telegramClient.execute(editMarkup);
+                log.debug("Клавиатура убрана у сообщения {} в чате {}", previousMessageId, chatId);
+            } catch (TelegramApiException e) {
+                log.debug("Не удалось убрать клавиатуру у предыдущего сообщения: {}", e.getMessage());
+            }
+        }
+
+        // Отправляем новое сообщение с клавиатурой
+        sendMessageWithKeyboard(chatId, text, keyboard);
     }
 
     public void sendErrorMessage(Long chatId) {

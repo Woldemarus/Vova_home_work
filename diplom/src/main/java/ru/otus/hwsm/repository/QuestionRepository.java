@@ -58,4 +58,18 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
      */
     @Query("SELECT COUNT(q) FROM Question q WHERE q.difficultyLevel = :difficultyLevel")
     Long countByDifficultyLevel(@Param("difficultyLevel") Integer difficultyLevel);
+
+    /**
+     * Найти вариант ответа по ID
+     */
+    @Query("SELECT qo FROM QuestionOption qo WHERE qo.id = :optionId")
+    Optional<QuestionOption> findQuestionOptionById(@Param("optionId") Long optionId);
+
+    /**
+     * Найти все вопросы по уровню сложности, исключая уже отвеченные в игре
+     */
+    @Query("SELECT q FROM Question q LEFT JOIN FETCH q.options " + "WHERE q.difficultyLevel = :difficultyLevel "
+            + "AND q.id NOT IN (SELECT ga.question.id FROM GameAnswer ga WHERE ga.game.id = :gameId)")
+    List<Question> findByDifficultyLevelWithOptionsExcludingAnswered(
+            @Param("difficultyLevel") Integer difficultyLevel, @Param("gameId") Long gameId);
 }
