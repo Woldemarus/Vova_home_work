@@ -1,23 +1,23 @@
 rootProject.name = "Vova_Otus"
-include("hw01-gradle")
-
-include("hw02-gradle2")
-include("hw02-gradle2-libApi")
-include("hw02-gradle2-libApiUse")
-include("hw02-logging")
-include("hw03-generics")
-
-include("hw04-qa")
-include("hw12-solid")
-include("HW06-annotations")
-include("hw10-bytecode")
-include("hw21-jpql")
-include("hw22-cache")
-
-include("hw34-multiprocess:grpc-demo")
-include("hw32-concurrentCollections:ConcurrentCollections")
-include("hw32-concurrentCollections:QueueDemo")
-include("HW31-executors")
+//include("hw01-gradle")
+//
+//include("hw02-gradle2")
+//include("hw02-gradle2-libApi")
+//include("hw02-gradle2-libApiUse")
+//include("hw02-logging")
+//include("hw03-generics")
+//
+//include("hw04-qa")
+//include("hw12-solid")
+//include("HW06-annotations")
+//include("hw10-bytecode")
+//include("hw21-jpql")
+//
+//include("hw34-multiprocess:grpc-demo")
+//include("hw32-concurrentCollections:ConcurrentCollections")
+//include("hw32-concurrentCollections:QueueDemo")
+//include("HW31-executors")
+include("diplom")
 
 pluginManagement {
     val jgitver: String by settings

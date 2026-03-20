@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  hwsm-telegram-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: hwsm-telegram-bot
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hwsmdev
+      - SPRING_DATASOURCE_USERNAME=hwsmdev
+      - SPRING_DATASOURCE_PASSWORD=HwSm2024!SecureP@ssw0rd#Dev
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hwsm-network
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  postgres:
+    image: postgres:17
+    container_name: hwsm-postgres
+    environment:
+      - POSTGRES_DB=hwsmdev
+      - POSTGRES_USER=hwsmdev
+      - POSTGRES_PASSWORD=HwSm2024!SecureP@ssw0rd#Dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - hwsm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hwsmdev -d hwsmdev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  hwsm-network:
+    driver: bridge
